@@ -2350,10 +2350,10 @@ bool Skin::ReadSkin()
 		return false;
 	}
 
-	std::wstring resourcePath = GetResourcesPath();
-	bool hasResourcesFolder = (_waccess_s(resourcePath.c_str(), 0) == 0);
+	m_ResourcesPath = GetRootPath() + L"@Resources\\";
+	const bool hasResourcesFolder = (_waccess_s(m_ResourcesPath.c_str(), 0) == 0);
 
-	m_Parser.Initialize(iniFile, this, nullptr, &resourcePath);
+	m_Parser.Initialize(iniFile, this, nullptr);
 
 	// Read any default settings from the skin (ie. DefaultWindowX, DefaultWindowY, etc.)
 	if (m_IsFirstRun)
@@ -5386,13 +5386,6 @@ std::wstring Skin::GetRootPath()
 		path += L'\\';
 	}
 
-	return path;
-}
-
-std::wstring Skin::GetResourcesPath()
-{
-	std::wstring path = GetRootPath();
-	path += L"@Resources\\";
 	return path;
 }
 

@@ -112,14 +112,13 @@ bool ConfigParser::ReadInheritOption(LPCTSTR section, bool allowMeterStyle)
 	return false;
 }
 
-void ConfigParser::Initialize(const std::wstring& filename, Skin* skin, LPCTSTR skinSection, const std::wstring* resourcePath)
+void ConfigParser::Initialize(const std::wstring& filename, Skin* skin, LPCTSTR skinSection)
 {
 	m_Skin = skin;
 
 	m_Measures.clear();
 	m_Sections.clear();
 	m_Values.clear();
-	m_BuiltInVariables.clear();
 	m_Variables.clear();
 	m_OriginalVariableNames.clear();
 
@@ -130,10 +129,8 @@ void ConfigParser::Initialize(const std::wstring& filename, Skin* skin, LPCTSTR 
 	m_MonitorVariableMode = MonitorVariableMode::DEFAULT_LOGICAL;
 
 	m_CurrentSection.clear();
+	m_CurrentPath = PathUtil::GetFolderFromFilePath(filename);
 	m_SectionInsertPos = m_Sections.end();
-
-	// Set the built-in variables. Do this before the ini file is read so that the paths can be used with @include
-	SetBuiltInVariables(filename, resourcePath, skin);
 
 	System::UpdateIniFileMappingList();
 
@@ -144,39 +141,6 @@ void ConfigParser::Initialize(const std::wstring& filename, Skin* skin, LPCTSTR 
 	m_FoundSections.clear();
 	m_ListVariables.clear();
 	m_SectionInsertPos = m_Sections.end();
-}
-
-void ConfigParser::SetBuiltInVariables(const std::wstring& filename, const std::wstring* resourcePath, Skin* skin)
-{
-	auto insertVariable = [&](const WCHAR* name, std::wstring value)
-	{
-		return m_BuiltInVariables.emplace(name, value);
-	};
-
-	insertVariable(L"PROGRAMPATH", GetRainmeter().GetPath());
-	insertVariable(L"PROGRAMDRIVE", GetRainmeter().GetDrive());
-	insertVariable(L"SETTINGSPATH", GetRainmeter().GetSettingsPath());
-	insertVariable(L"SKINSPATH", GetRainmeter().GetSkinPath());
-	insertVariable(L"PLUGINSPATH", GetRainmeter().GetPluginPath());
-	insertVariable(L"CURRENTPATH", PathUtil::GetFolderFromFilePath(filename));
-	insertVariable(L"ADDONSPATH", GetRainmeter().GetAddonPath());
-
-	insertVariable(L"CONFIGEDITOR", GetRainmeter().GetSkinEditor());
-
-	if (skin)
-	{
-		insertVariable(L"CURRENTFILE", skin->GetFileName());
-		insertVariable(L"CURRENTCONFIG", skin->GetFolderPath());
-		insertVariable(L"ROOTCONFIG", skin->GetRootName());
-		insertVariable(L"ROOTCONFIGPATH", skin->GetRootPath());
-	}
-
-	insertVariable(L"CRLF", L"\n");
-
-	if (resourcePath)
-	{
-		SetVariable(L"@", *resourcePath);
-	}
 }
 
 /*
@@ -205,35 +169,11 @@ void ConfigParser::SetVariable(std::wstring strVariable, const std::wstring& str
 	}
 }
 
-void ConfigParser::SetBuiltInVariable(const std::wstring& strVariable, const std::wstring& strValue)
-{
-	m_BuiltInVariables[strVariable] = strValue;
-}
-
-/*
-** Gets a value for the variable. Returns false if not found.
-**
-*/
 bool ConfigParser::GetVariable(const std::wstring& strVariable, std::wstring& strValue, bool isNewStyle)
 {
-	const std::wstring strTmp = StrToUpper(strVariable);
-
 	// #1: Built-in variables
-	auto iter = m_BuiltInVariables.find(strTmp);
-	if (iter != m_BuiltInVariables.end())
-	{
-		strValue = (*iter).second;
-		return true;
-	}
+	auto result = GetBuiltInVariable(strVariable);
 
-	static const std::wstring s_CurrentSectionStr = L"CURRENTSECTION";
-	if (strTmp == s_CurrentSectionStr)
-	{
-		strValue = m_CurrentSection;
-		return true;
-	}
-
-	std::optional<std::wstring> result;
 	if (isNewStyle)
 	{
 		// #2: New-style section variables
@@ -245,7 +185,7 @@ bool ConfigParser::GetVariable(const std::wstring& strVariable, std::wstring& st
 	if (!result) result = GetCurrentConfigVariable(strVariable);
 
 	// #4: Monitor variables
-	if (!result) result = GetMonitorVariable(strTmp);
+	if (!result) result = GetMonitorVariable(strVariable);
 
 	if (result)
 	{
@@ -254,7 +194,7 @@ bool ConfigParser::GetVariable(const std::wstring& strVariable, std::wstring& st
 	}
 
 	// #5: User-defined variables
-	iter = m_Variables.find(strTmp);
+	auto iter = m_Variables.find(StrToUpper(strVariable));
 	if (iter != m_Variables.end())
 	{
 		strValue = (*iter).second;
@@ -262,6 +202,31 @@ bool ConfigParser::GetVariable(const std::wstring& strVariable, std::wstring& st
 	}
 
 	return false;
+}
+
+std::optional<std::wstring> ConfigParser::GetBuiltInVariable(const std::wstring& variableStr)
+{
+	auto strParser = StringParser(variableStr);
+	if (strParser.ConsumeRest(L'@')) return m_Skin ? std::optional<std::wstring>(m_Skin->GetResourcesPath()) : std::nullopt;
+	if (strParser.ConsumeRest(L"CurrentSection")) return m_CurrentSection;
+	if (strParser.ConsumeRest(L"ProgramPath")) return GetRainmeter().GetPath();
+	if (strParser.ConsumeRest(L"ProgramDrive")) return GetRainmeter().GetDrive();
+	if (strParser.ConsumeRest(L"SettingsPath")) return GetRainmeter().GetSettingsPath();
+	if (strParser.ConsumeRest(L"SkinsPath")) return GetRainmeter().GetSkinPath();
+	if (strParser.ConsumeRest(L"PluginsPath")) return GetRainmeter().GetPluginPath();
+	if (strParser.ConsumeRest(L"CurrentPath")) return m_CurrentPath;
+	if (strParser.ConsumeRest(L"AddonsPath")) return GetRainmeter().GetAddonPath();
+	if (strParser.ConsumeRest(L"ConfigEditor")) return GetRainmeter().GetSkinEditor();
+	if (strParser.ConsumeRest(L"CRLF")) return L"\n";
+
+	if (!m_Skin) return std::nullopt;
+
+	if (strParser.ConsumeRest(L"CurrentFile")) return m_Skin->GetFileName();
+	if (strParser.ConsumeRest(L"CurrentConfig")) return m_Skin->GetFolderPath();
+	if (strParser.ConsumeRest(L"RootConfig")) return m_Skin->GetRootName();
+	if (strParser.ConsumeRest(L"RootConfigPath")) return m_Skin->GetRootPath();
+
+	return std::nullopt;
 }
 
 const std::wstring* ConfigParser::GetVariableOriginalName(const std::wstring& strVariable)
