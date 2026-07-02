@@ -2490,7 +2490,7 @@ bool Skin::ReadSkin()
 	if (hasResourcesFolder)
 	{
 		WIN32_FIND_DATA fd = { 0 };
-		std::wstring resourceFontPath = resourcePath + L"Fonts\\*";
+		std::wstring resourceFontPath = m_ResourcesPath + L"Fonts\\*";
 
 		HANDLE find = FindFirstFileEx(
 			resourceFontPath.c_str(),
@@ -2569,7 +2569,7 @@ bool Skin::ReadSkin()
 		auto fontCollectionD2D = (Gfx::FontCollectionD2D*)m_FontCollection;
 		if (fontCollectionD2D && fontCollectionD2D->InitializeCollection())
 		{
-			std::wstring fontResourcePath = resourcePath + L"Fonts\\";
+			std::wstring fontResourcePath = m_ResourcesPath + L"Fonts\\";
 			std::wstring fontSource = L"Source: ";
 			if (hasLocalFonts) fontSource += L"LocalFont";
 			if (hasResourceFonts)

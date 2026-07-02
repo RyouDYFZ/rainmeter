@@ -207,24 +207,33 @@ bool ConfigParser::GetVariable(const std::wstring& strVariable, std::wstring& st
 std::optional<std::wstring> ConfigParser::GetBuiltInVariable(const std::wstring& variableStr)
 {
 	auto strParser = StringParser(variableStr);
-	if (strParser.ConsumeRest(L'@')) return m_Skin ? std::optional<std::wstring>(m_Skin->GetResourcesPath()) : std::nullopt;
-	if (strParser.ConsumeRest(L"CurrentSection")) return m_CurrentSection;
-	if (strParser.ConsumeRest(L"ProgramPath")) return GetRainmeter().GetPath();
-	if (strParser.ConsumeRest(L"ProgramDrive")) return GetRainmeter().GetDrive();
-	if (strParser.ConsumeRest(L"SettingsPath")) return GetRainmeter().GetSettingsPath();
-	if (strParser.ConsumeRest(L"SkinsPath")) return GetRainmeter().GetSkinPath();
-	if (strParser.ConsumeRest(L"PluginsPath")) return GetRainmeter().GetPluginPath();
-	if (strParser.ConsumeRest(L"CurrentPath")) return m_CurrentPath;
-	if (strParser.ConsumeRest(L"AddonsPath")) return GetRainmeter().GetAddonPath();
+
+	if (strParser.ConsumeRest(L'@') && m_Skin) return m_Skin->GetResourcesPath();
+
+	if (strParser.ConsumeSuffix(L"Path"))
+	{
+		if (strParser.ConsumeRest(L"Program")) return GetRainmeter().GetPath();
+		if (strParser.ConsumeRest(L"Settings")) return GetRainmeter().GetSettingsPath();
+		if (strParser.ConsumeRest(L"Skins")) return GetRainmeter().GetSkinPath();
+		if (strParser.ConsumeRest(L"Plugins")) return GetRainmeter().GetPluginPath();
+		if (strParser.ConsumeRest(L"Current")) return m_CurrentPath;
+		if (strParser.ConsumeRest(L"Addons")) return GetRainmeter().GetAddonPath();
+		if (strParser.ConsumeRest(L"RootConfig") && m_Skin) return m_Skin->GetRootPath();
+		return std::nullopt;
+	}
+
+	if (strParser.Consume(L"Current"))
+	{
+		if (strParser.ConsumeRest(L"Section")) return m_CurrentSection;
+		if (strParser.ConsumeRest(L"File") && m_Skin) return m_Skin->GetFileName();
+		if (strParser.ConsumeRest(L"Config") && m_Skin) return m_Skin->GetFolderPath();
+		return std::nullopt;
+	}
+
 	if (strParser.ConsumeRest(L"ConfigEditor")) return GetRainmeter().GetSkinEditor();
 	if (strParser.ConsumeRest(L"CRLF")) return L"\n";
-
-	if (!m_Skin) return std::nullopt;
-
-	if (strParser.ConsumeRest(L"CurrentFile")) return m_Skin->GetFileName();
-	if (strParser.ConsumeRest(L"CurrentConfig")) return m_Skin->GetFolderPath();
-	if (strParser.ConsumeRest(L"RootConfig")) return m_Skin->GetRootName();
-	if (strParser.ConsumeRest(L"RootConfigPath")) return m_Skin->GetRootPath();
+	if (strParser.ConsumeRest(L"ProgramDrive")) return GetRainmeter().GetDrive();
+	if (strParser.ConsumeRest(L"RootConfig") && m_Skin) return m_Skin->GetRootName();
 
 	return std::nullopt;
 }
